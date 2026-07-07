@@ -1,0 +1,13 @@
+[tool.pytest.ini_options]
+# Makes `app` importable from tests/ (which deliberately has no __init__.py)
+# without needing an editable install. Run pytest from this directory:
+#   cd services/reconstruction-api && pytest
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]

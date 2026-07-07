@@ -1,0 +1,57 @@
+# services/reconstruction-api/docker-compose.yml
+#
+# This is a *snippet*, scoped to this service, showing how `apps/web` (running
+# in `backend` computeMode — see apps/web/src/settings/) would reach
+# `reconstruction-api` over the Docker network. It is not the repo's root
+# orchestration file (none is assumed to exist yet) — copy/merge the
+# `reconstruction-api` service block into a root-level compose file once one
+# exists, adjusting the `apps/web` build context path accordingly.
+#
+# UNVERIFIED: not run in this scaffolding environment (no Docker/Python here).
+
+services:
+  reconstruction-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: topview/reconstruction-api:local
+    ports:
+      - "8000:8000"
+    environment:
+      # Loosened for local/dev compose only — tighten per docs/deployment.md
+      # before this ever runs anywhere real.
+      - TOPVIEW_CORS_ALLOW_ORIGINS=*
+      - TOPVIEW_LOG_LEVEL=info
+    volumes:
+      # Bind-mount for job/upload scratch space so large intermediate
+      # artifacts (frames, point clouds) survive container restarts during
+      # local development. Adjust/remove for a stateless prod deployment.
+      - reconstruction-scratch:/app/.scratch
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Example of how apps/web reaches the service above when the user selects
+  # computeMode: 'backend' in apps/web/src/settings/. This block assumes an
+  # apps/web Dockerfile exists (out of scope here); the important part is the
+  # RECONSTRUCTION_API_URL wiring, which apps/web's HttpComputeBackend reads.
+  web:
+    build:
+      context: ../../apps/web
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      # Service-name DNS resolution works because both services share this
+      # compose file's default network. From the browser (outside the
+      # container network) this would instead need to be a published host
+      # port / reverse-proxy path — see docs/deployment.md.
+      - VITE_RECONSTRUCTION_API_URL=http://reconstruction-api:8000
+    depends_on:
+      reconstruction-api:
+        condition: service_healthy
+
+volumes:
+  reconstruction-scratch:

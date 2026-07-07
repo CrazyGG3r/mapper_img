@@ -1,0 +1,22 @@
+import type { PluginManifest } from '@topview/plugin-sdk';
+
+export const EXAMPLE_WALL_DETECTOR_MANIFEST: PluginManifest = {
+  id: 'topview.detector.example-wall-ransac',
+  name: 'Example Wall Detector (RANSAC)',
+  version: '0.1.0',
+  kind: 'feature-detector',
+  sdkVersionRange: '^0.1.0',
+  description:
+    'Reference FeatureDetector: projects a point cloud onto the XY plane and extracts wall segments via iterative RANSAC line fitting. See docs/plugin-development.md for a line-by-line walkthrough.',
+  detects: ['wall'],
+  configSchema: {
+    type: 'object',
+    properties: {
+      thicknessM: { type: 'number', minimum: 0.02, default: 0.1 },
+      distanceThresholdM: { type: 'number', minimum: 0.005, default: 0.05 },
+      minSegmentLengthM: { type: 'number', minimum: 0.05, default: 0.3 },
+    },
+  },
+  entryPoint: './dist/index.js',
+  author: 'TopView SVG Mapper contributors',
+};

@@ -1,0 +1,12 @@
+# services/reconstruction-api/requirements-dev.txt
+#
+# Test-only dependencies, kept out of requirements.txt (and therefore out of
+# the Docker image) since they're never needed at runtime.
+#
+#   pip install -r requirements.txt -r requirements-dev.txt
+#   pytest
+
+-r requirements.txt
+pytest>=8.3
+httpx>=0.27      # required by fastapi.testclient.TestClient (Starlette >= 0.21)
+ruff>=0.6        # matches .github/workflows/ci.yml's `ruff check .` step

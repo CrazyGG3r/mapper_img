@@ -1,0 +1,35 @@
+{
+  "name": "@topview/plugin-example-detector",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Reference FeatureDetector plugin: extracts wall segments from a projected point cloud via iterative RANSAC line fitting. See docs/plugin-development.md.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "plugin.manifest.json"
+  ],
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@topview/schema": "*",
+    "@topview/plugin-sdk": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "rimraf": "^6.0.0"
+  }
+}
