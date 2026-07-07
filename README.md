@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Map Generator
 
 Give it an image (ideally with the background removed), get back the texture
@@ -98,3 +99,6 @@ come from the height gradients (Sobel), AO from comparing each pixel to its
 blurred surroundings at several scales, and roughness from brightness +
 local detail. Works great for surface textures (rock, wood, fabric, walls);
 for photos of 3D objects it's an approximation — tweak the flags.
+=======
+wtf?
+>>>>>>> a89c4ab209a6826a34fbd15dce04a9ca36c3693a

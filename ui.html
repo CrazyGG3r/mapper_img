@@ -398,7 +398,8 @@
     clearSel();
     vimg.onload = () => {
       const dims = vimg.naturalWidth + "x" + vimg.naturalHeight;
-      if (dims !== V.lastDims) { V.lastDims = dims; vFit(); } else vApply();
+      // wait a frame so the freshly shown viewer has real layout dimensions
+      if (dims !== V.lastDims) { V.lastDims = dims; requestAnimationFrame(vFit); } else vApply();
     };
     vimg.src = lastResult.maps[key];
   }
