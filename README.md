@@ -1,105 +1,100 @@
-# TopView SVG Mapper
+# Map Generator
 
-TopView SVG Mapper turns a walkthrough video of an indoor space into an
-editable, top-down 2D SVG floor plan. A video is decomposed into frames,
-run through a plugin-extensible feature-detection pipeline (camera pose,
-point cloud, walls, furniture, layout), and the result is cleaned up in an
-in-browser SVG editor and exported.
+Give it an image (ideally with the background removed), get back the texture
+maps you need to make light react to it properly in Blender:
 
-## Architecture at a glance
+| File | What it is | Plug into |
+|---|---|---|
+| `*_basecolor.png` | untouched copy of your input | Base Color |
+| `*_normal.png` | surface bumps as a normal map (OpenGL/Blender style) | Normal (via Normal Map node) |
+| `*_ao.png` | ambient occlusion — soft shadows in crevices | multiplied into Base Color |
+| `*_roughness.png` | how shiny vs. matte each area is | Roughness |
+| `*_height.png` | 16-bit displacement map | Displacement (via Displacement node) |
 
-This is a plain npm-workspaces monorepo -- each package's own `build` script
-uses TypeScript project references, which self-order builds by dependency, so
-no separate task runner is needed on top (Turborepo was tried and dropped:
-its native binary segfaulted in this repo's dev environment).
-The dependency graph between packages is intentionally one-directional and
-enforced in CI (`npm run verify-deps`) — see `docs/architecture.md` for the
-full rationale.
+If your input has transparency, the alpha channel is carried over to the
+output maps so masking in Blender just works.
+
+## Setup (one time)
 
 ```
-apps/web                      SPA: upload, pipeline progress, viewers, SVG editor
-packages/schema                shared TypeScript types + generated JSON Schema
-packages/plugin-sdk             the contract third-party feature detectors implement
-packages/pipeline-core           stage orchestration, event/progress protocol
-packages/svg-engine               SVG scene graph, editing primitives, exporters
-packages/geometry-wasm              geometry kernels (optional Rust/WASM acceleration)
-plugins/example-detector      reference FeatureDetector plugin (wall/corner heuristic)
-services/reconstruction-api   optional FastAPI backend for offloaded/cloud compute
-tests/e2e                     Playwright black-box tests against a built apps/web
-data/samples                  sample-dataset fixtures (no binaries committed)
-docs/                         architecture, plugin dev, deployment, roadmap, etc.
+pip install -r requirements.txt
 ```
 
-Everything under `apps/*`, `packages/*`, and `plugins/*` is an npm workspace
-member. `services/reconstruction-api` (Python/FastAPI) and `tests/e2e`
-(Playwright) are deliberately **outside** the npm workspace globs — they're
-independent toolchains with their own install steps. Internal
-`@topview/*` dependencies are always declared as the plain range `"*"`,
-never `workspace:*`.
+## Run it — the easy way
 
-## Prerequisites
+**Double-click `MapGenerator.bat`.** It opens the app in your browser:
+drag an image in and each map appears as a card with its own controls —
+Base Color has a saturation slider, Normal has strength + invert green
+(DirectX) + world space (Y-up), AO has darkness, Roughness has amount +
+invert, Height has smoothing + invert. Any change re-generates
+automatically. Hit **Save all (ZIP)** or save individual maps.
+Everything runs locally on your machine; nothing is uploaded anywhere.
+Close the black console window when you're done.
 
-- **Node.js 20+** and npm — required for everything in `apps/*`,
-  `packages/*`, and `plugins/*`.
-- **Python 3.12+** — only needed if you're working on
-  `services/reconstruction-api`. The rest of the repo builds, type-checks,
-  lints, and tests without it.
-- **Rust + `wasm-pack`** — only needed for `packages/geometry-wasm`'s
-  accelerated build (`build:wasm`); a pure-TypeScript fallback implementation
-  is used otherwise.
+## Run it — command line (optional)
 
-See `docs/installation.md` for the precise breakdown of what's optional and
-what breaks without it.
-
-## Quickstart
-
-```bash
-# install all JS/TS workspace dependencies (single root install)
-npm install
-
-# run every package's dev task in parallel (e.g. apps/web's Vite dev server)
-npm run dev
-
-# build every workspace package, respecting the dependency graph
-npm run build
-
-# type-check, lint, and test everything
-npm run typecheck
-npm run lint
-npm test
-
-# enforce the allowed @topview/* dependency graph (also runs in CI)
-npm run verify-deps
+```
+python generate_maps.py your_image.png
 ```
 
-`services/reconstruction-api` and `tests/e2e` have their own install/run
-steps documented in `docs/installation.md` and `tests/e2e/README` — they are
-never touched by the root `npm install`.
+That creates a folder `your_image_maps/` next to the image with all the maps
+inside. You can also point it at a whole folder of images:
 
-## Documentation
+```
+python generate_maps.py my_textures_folder/
+```
 
-Start in [`docs/architecture.md`](docs/architecture.md) for the system
-design, then:
+### Tweaking the output
 
-- [`docs/installation.md`](docs/installation.md) — full setup, including
-  optional Python/Rust toolchains
-- [`docs/plugin-development.md`](docs/plugin-development.md) — build a
-  feature-detector plugin, walked through using `plugins/example-detector`
-- [`docs/configuration.md`](docs/configuration.md) — root npm scripts,
-  `tsconfig.base.json`, compute modes, environment variables
-- [`docs/api.md`](docs/api.md) — public package exports and the REST/SSE
-  surface of `services/reconstruction-api`
-- [`docs/deployment.md`](docs/deployment.md) — hosting `apps/web` and the
-  reconstruction API
-- [`docs/user-guide.md`](docs/user-guide.md) — end-to-end usage walkthrough
-- [`docs/troubleshooting.md`](docs/troubleshooting.md) /
-  [`docs/performance.md`](docs/performance.md) /
-  [`docs/roadmap.md`](docs/roadmap.md)
+| Flag | Effect |
+|---|---|
+| `--strength 4` | stronger bumps in the normal map (default 2.5) |
+| `--ao-strength 1.5` | darker occlusion shadows (default 1.0) |
+| `--smooth 2` | blur the height map more — use if the normal map looks noisy/grainy |
+| `--saturation 1.3` | base color saturation, 0 = grayscale (default 1.0) |
+| `--roughness-amount 0.7` | scale the roughness map, lower = shinier (default 1.0) |
+| `--invert-height` | use when dark parts of your image should stick OUT (default: bright = high) |
+| `--invert-roughness` | flip shiny/matte if it looks backwards |
+| `--flip-y` | invert the green channel (DirectX-style normals) — leave OFF for Blender |
+| `--world-space` | Y-up world-space normal map instead of tangent space |
 
-## Contributing
+Example:
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+```
+python generate_maps.py rock.png --strength 4 --ao-strength 1.3 --smooth 2
+```
 
-## License
+## Hooking it up in Blender
 
-[MIT](LICENSE)
+1. Select your object, open the **Shading** tab, make sure it has a material
+   with a **Principled BSDF**.
+2. Drag all the generated PNGs into the node editor. Then wire them up:
+   - **basecolor** → `Base Color`
+     (for AO: add a **MixRGB** node set to *Multiply*, basecolor + ao in,
+     result → Base Color)
+   - **roughness** → `Roughness`. Set the image node's **Color Space to
+     Non-Color**.
+   - **normal** → add a **Normal Map** node (`Shift+A` → Vector → Normal Map),
+     wire normal image → Normal Map → BSDF `Normal`. Set the image's **Color
+     Space to Non-Color**.
+   - **height** → add a **Displacement** node (Vector → Displacement), wire
+     height image → Displacement node `Height`, then Displacement node →
+     Material Output `Displacement`. **Color Space: Non-Color.** Start with
+     Scale around `0.05` and adjust.
+3. For real geometry displacement (not just shading): Material Properties →
+   Settings → **Displacement: Displacement and Bump**, and give the mesh
+   enough subdivisions (add a Subdivision Surface modifier, or use Adaptive
+   Subdivision in Cycles experimental mode).
+
+**The one thing people always forget:** every map except basecolor must have
+its image node's *Color Space* set to **Non-Color**, or lighting will look
+wrong.
+
+## How it works
+
+There is no AI here — it's the classic image-processing approach (same idea
+as tools like CrazyBump/Materialize): brightness is treated as height, normals
+come from the height gradients (Sobel), AO from comparing each pixel to its
+blurred surroundings at several scales, and roughness from brightness +
+local detail. Works great for surface textures (rock, wood, fabric, walls);
+for photos of 3D objects it's an approximation — tweak the flags.

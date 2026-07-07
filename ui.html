@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Map Generator</title>
+<style>
+  :root {
+    --bg: #0e1014;
+    --panel: #161a21;
+    --panel-2: #1c212b;
+    --border: #262c38;
+    --text: #e8ebf0;
+    --muted: #8b93a3;
+    --accent: #6d8dff;
+    --accent-2: #8f6dff;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 "Segoe UI", system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  header {
+    display: flex; align-items: baseline; gap: 14px;
+    padding: 22px 28px 10px;
+  }
+  header h1 {
+    font-size: 20px; font-weight: 650; letter-spacing: .2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  header span { color: var(--muted); font-size: 13px; }
+
+  main { padding: 12px 28px 28px; }
+
+  /* ---------- drop zone ---------- */
+  #drop {
+    border: 2px dashed var(--border); border-radius: var(--radius);
+    background: var(--panel);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    min-height: 300px; cursor: pointer; text-align: center; padding: 30px;
+    transition: border-color .15s, background .15s;
+  }
+  #drop.compact { min-height: 0; padding: 12px 18px; flex-direction: row; margin-bottom: 14px; gap: 12px; }
+  #drop.compact svg { width: 22px; height: 22px; }
+  #drop.compact .sub { display: none; }
+  #drop.over { border-color: var(--accent); background: #6d8dff14; }
+  #drop .big { font-size: 17px; font-weight: 600; }
+  #drop.compact .big { font-size: 14px; font-weight: 500; color: var(--muted); }
+  #drop .sub { color: var(--muted); font-size: 13px; }
+  #drop svg { opacity: .7; }
+
+  /* ---------- meta bar ---------- */
+  #meta { display: none; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 14px; }
+  #meta .name { font-weight: 600; }
+  #meta .dims { color: var(--muted); font-size: 13px; margin-left: 10px; }
+  .btn {
+    padding: 9px 18px; border: 0; border-radius: 10px;
+    font: 600 14px "Segoe UI", system-ui, sans-serif;
+    cursor: pointer; transition: filter .15s;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2)); color: #fff;
+  }
+  .btn:hover { filter: brightness(1.15); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; filter: none; }
+
+  /* ---------- cards ---------- */
+  #grid {
+    display: none;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px;
+  }
+  #grid.on { display: grid; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden; display: flex; flex-direction: column;
+  }
+  .thumb {
+    aspect-ratio: 1; display: grid; place-items: center; overflow: hidden;
+    background: repeating-conic-gradient(#1e2229 0 25%, #161a20 0 50%) 0 0 / 18px 18px;
+  }
+  .thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .card .bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 6px; }
+  .card .title { font-size: 14px; font-weight: 600; }
+  .card .use { font-size: 11.5px; color: var(--muted); }
+  .card a.save {
+    color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 600;
+    padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; flex-shrink: 0;
+  }
+  .card a.save:hover { border-color: var(--accent); }
+
+  .ctls { padding: 4px 12px 12px; border-top: 1px solid var(--border); margin-top: 4px; }
+  .ctl { margin-top: 8px; }
+  .ctl label { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--muted); margin-bottom: 4px; }
+  .ctl output { color: var(--accent); font-variant-numeric: tabular-nums; }
+  input[type=range] {
+    width: 100%; appearance: none; height: 4px; border-radius: 3px;
+    background: var(--panel-2); outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent); border: 2px solid #fff2;
+  }
+  .chk { display: flex; gap: 7px; align-items: center; font-size: 12.5px; color: var(--muted); padding-top: 8px; cursor: pointer; }
+  .chk input { accent-color: var(--accent); width: 14px; height: 14px; }
+
+  /* ---------- big viewer ---------- */
+  #viewer { display: none; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; overflow: hidden; }
+  #viewer.on { display: block; }
+  .vtoolbar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  #vtitle { font-weight: 600; font-size: 14px; min-width: 90px; }
+  .vzoom { display: flex; align-items: center; gap: 8px; flex: 1; }
+  .vzoom input[type=range] { width: 170px; }
+  #v-pct { color: var(--muted); font-size: 12.5px; width: 48px; font-variant-numeric: tabular-nums; }
+  .vbtn {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 5px 11px; font: 600 13px "Segoe UI", system-ui, sans-serif; cursor: pointer;
+  }
+  .vbtn:hover { border-color: var(--accent); }
+  .vbtn.active { background: #6d8dff26; border-color: var(--accent); color: var(--accent); }
+  #vport {
+    position: relative; height: 58vh; overflow: hidden; cursor: grab;
+    background: repeating-conic-gradient(#181c23 0 25%, #12151a 0 50%) 0 0 / 22px 22px;
+  }
+  #vport.selecting { cursor: crosshair; }
+  #vport.panning { cursor: grabbing; }
+  #vwrap { position: absolute; transform-origin: 0 0; }
+  #vwrap img { display: block; image-rendering: pixelated; }
+  #vmarq { position: absolute; border: 1.5px dashed var(--accent); background: #6d8dff1c; pointer-events: none; }
+  #vhint {
+    position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+    background: #0e1014cc; color: var(--muted); font-size: 12px;
+    padding: 5px 12px; border-radius: 8px; pointer-events: none; white-space: nowrap;
+  }
+  #brushpanel { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border-top: 1px solid var(--border); background: var(--panel-2); }
+  #brushpanel[hidden] { display: none; }
+  #bprev { width: 64px; height: 64px; border-radius: 8px; background: #fff; flex-shrink: 0; }
+  .binfo { flex: 1; }
+  .btitle { font-weight: 600; font-size: 13.5px; }
+  #brushpanel .use { font-size: 11.5px; color: var(--muted); }
+  #brushpanel .chk { padding-top: 2px; }
+  .card .thumb { cursor: zoom-in; }
+  .card.active { border-color: var(--accent); }
+
+  footer { padding: 0 28px 24px; color: var(--muted); font-size: 12.5px; }
+  footer b { color: var(--text); }
+
+  /* ---------- busy overlay ---------- */
+  #busy {
+    position: fixed; inset: 0; background: #0e101499; display: none;
+    align-items: center; justify-content: center; flex-direction: column; gap: 14px; z-index: 10;
+  }
+  #busy.on { display: flex; }
+  .spinner {
+    width: 42px; height: 42px; border-radius: 50%;
+    border: 4px solid var(--panel-2); border-top-color: var(--accent);
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Map Generator</h1>
+  <span>drop an image &rarr; get normal / AO / roughness / height maps for Blender</span>
+</header>
+
+<main>
+  <div id="drop">
+    <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#6d8dff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+    <div class="big">Drop your image here</div>
+    <div class="sub">or click to browse &middot; PNG with transparent background works best</div>
+    <input type="file" id="file" accept="image/*" hidden>
+  </div>
+
+  <div id="meta">
+    <div><span class="name" id="meta-name"></span><span class="dims" id="meta-dims"></span></div>
+    <button class="btn" id="saveall">&#11123; Save all (ZIP)</button>
+  </div>
+
+  <div id="viewer">
+    <div class="vtoolbar">
+      <span id="vtitle">Base Color</span>
+      <div class="vzoom">
+        <button class="vbtn" id="v-out" title="Zoom out (−)">&minus;</button>
+        <input type="range" id="v-zoom" min="10" max="800" value="100">
+        <button class="vbtn" id="v-in" title="Zoom in (+)">+</button>
+        <span id="v-pct">100%</span>
+        <button class="vbtn" id="v-fit" title="Fit (0)">Fit</button>
+        <button class="vbtn" id="v-100" title="Actual pixels (1)">1:1</button>
+      </div>
+      <button class="vbtn" id="v-select">&#9634; Select brush region</button>
+    </div>
+    <div id="vport">
+      <div id="vwrap"><img id="vimg" alt=""></div>
+      <div id="vmarq" hidden></div>
+      <div id="vhint">drag to pan &middot; scroll to zoom &middot; + / &minus; keys &middot; 0 = fit &middot; 1 = 100%</div>
+    </div>
+    <div id="brushpanel" hidden>
+      <canvas id="bprev" width="96" height="96"></canvas>
+      <div class="binfo">
+        <div class="btitle">Brush from selection</div>
+        <div class="use">Save as PNG, then in Photoshop: Edit &rarr; Define Brush Preset. Dark pixels become the brush.</div>
+        <label class="chk"><input type="checkbox" id="b-inv"> Invert (white strokes on black)</label>
+      </div>
+      <button class="btn" id="b-save">Save brush PNG</button>
+      <button class="vbtn" id="b-close" title="Clear selection">&#10005;</button>
+    </div>
+  </div>
+
+  <div id="grid">
+
+    <div class="card" data-key="basecolor">
+      <div class="thumb"><img alt="base color"></div>
+      <div class="bar">
+        <div><div class="title">Base Color</div><div class="use">&rarr; Base Color</div></div>
+        <a class="save">Save</a>
+      </div>
+      <div class="ctls">
+        <div class="ctl">
+          <label>Saturation <output for="p-sat">1.00</output></label>
+          <input type="range" id="p-sat" min="0" max="2" step="0.05" value="1">
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-key="normal">
+      <div class="thumb"><img alt="normal map"></div>
+      <div class="bar">
+        <div><div class="title">Normal</div><div class="use">Non-Color &rarr; Normal Map node</div></div>
+        <a class="save">Save</a>
+      </div>
+      <div class="ctls">
+        <div class="ctl">
+          <label>Strength <output for="p-strength">2.5</output></label>
+          <input type="range" id="p-strength" min="0.5" max="8" step="0.1" value="2.5">
+        </div>
+        <label class="chk"><input type="checkbox" id="p-invg"> Invert green (DirectX)</label>
+        <label class="chk"><input type="checkbox" id="p-ws"> World space (Y-up)</label>
+      </div>
+    </div>
+
+    <div class="card" data-key="ao">
+      <div class="thumb"><img alt="ambient occlusion map"></div>
+      <div class="bar">
+        <div><div class="title">AO</div><div class="use">Non-Color &rarr; multiply with Base Color</div></div>
+        <a class="save">Save</a>
+      </div>
+      <div class="ctls">
+        <div class="ctl">
+          <label>Darkness <output for="p-ao">1.0</output></label>
+          <input type="range" id="p-ao" min="0" max="3" step="0.1" value="1">
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-key="roughness">
+      <div class="thumb"><img alt="roughness map"></div>
+      <div class="bar">
+        <div><div class="title">Roughness</div><div class="use">Non-Color &rarr; Roughness</div></div>
+        <a class="save">Save</a>
+      </div>
+      <div class="ctls">
+        <div class="ctl">
+          <label>Amount <output for="p-ramt">1.00</output></label>
+          <input type="range" id="p-ramt" min="0" max="2" step="0.05" value="1">
+        </div>
+        <label class="chk"><input type="checkbox" id="p-invr"> Invert</label>
+      </div>
+    </div>
+
+    <div class="card" data-key="height">
+      <div class="thumb"><img alt="height map"></div>
+      <div class="bar">
+        <div><div class="title">Height</div><div class="use">Non-Color &rarr; Displacement node (16-bit)</div></div>
+        <a class="save">Save</a>
+      </div>
+      <div class="ctls">
+        <div class="ctl">
+          <label>Smoothing (feeds normal + AO too) <output for="p-smooth">1.0</output></label>
+          <input type="range" id="p-smooth" min="0" max="8" step="0.5" value="1">
+        </div>
+        <label class="chk"><input type="checkbox" id="p-invh"> Invert (dark = high)</label>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer>
+  Blender tip: set <b>Color Space &rarr; Non-Color</b> on every map except Base Color.
+  Normal goes through a <b>Normal Map</b> node, Height through a <b>Displacement</b> node.
+</footer>
+
+<div id="busy"><div class="spinner"></div><div>Generating maps&hellip;</div></div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  let file = null, resultId = null;
+
+  // live value readouts, e.g. 2.5 for sliders with step >= 0.1, 1.00 for finer ones
+  // (scoped to #grid: the viewer/brush controls must not trigger a regenerate)
+  for (const slider of document.querySelectorAll('#grid input[type=range]')) {
+    const out = document.querySelector(`output[for="${slider.id}"]`);
+    const digits = slider.step.length > 3 ? 2 : 1;
+    slider.addEventListener("input",  () => out.textContent = (+slider.value).toFixed(digits));
+    slider.addEventListener("change", () => generate());
+  }
+  for (const box of document.querySelectorAll('#grid input[type=checkbox]'))
+    box.addEventListener("change", () => generate());
+
+  // drop zone
+  const drop = $("drop");
+  drop.addEventListener("click", () => $("file").click());
+  $("file").addEventListener("change", e => { if (e.target.files[0]) load(e.target.files[0]); });
+  for (const t of ["dragover", "dragenter"])
+    document.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); });
+  for (const t of ["dragleave", "dragend"])
+    document.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); });
+  document.addEventListener("drop", e => {
+    e.preventDefault();
+    drop.classList.remove("over");
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith("image/")) load(f);
+  });
+
+  function load(f) { file = f; generate(); }
+
+  async function generate() {
+    if (!file) return;
+    $("busy").classList.add("on");
+    try {
+      const p = new URLSearchParams({
+        strength: $("p-strength").value,
+        ao:       $("p-ao").value,
+        smooth:   $("p-smooth").value,
+        sat:      $("p-sat").value,
+        ramt:     $("p-ramt").value,
+        invh:     $("p-invh").checked ? 1 : 0,
+        invr:     $("p-invr").checked ? 1 : 0,
+        invg:     $("p-invg").checked ? 1 : 0,
+        ws:       $("p-ws").checked ? 1 : 0,
+        name:     file.name,
+      });
+      const r = await fetch("/generate?" + p, { method: "POST", body: file });
+      if (!r.ok) throw new Error(await r.text());
+      render(await r.json());
+    } catch (err) {
+      alert("Could not generate maps:\n" + err.message);
+    } finally {
+      $("busy").classList.remove("on");
+    }
+  }
+
+  function render(j) {
+    resultId = j.id;
+    lastResult = j;
+    drop.classList.add("compact");
+    drop.querySelector(".big").textContent = "Drop another image to replace — " + file.name;
+    $("meta").style.display = "flex";
+    $("meta-name").textContent = file.name;
+    $("meta-dims").textContent = j.width + " × " + j.height + " px";
+    $("grid").classList.add("on");
+
+    for (const card of document.querySelectorAll("#grid .card")) {
+      const key = card.dataset.key;
+      card.querySelector("img").src = j.maps[key];
+      const a = card.querySelector("a.save");
+      a.href = j.maps[key];
+      a.download = j.stem + "_" + key + ".png";
+    }
+    vShow(V.key || "basecolor");   // open / refresh the big viewer
+  }
+
+  $("saveall").addEventListener("click", () => {
+    if (resultId) location.href = "/zip?id=" + resultId;
+  });
+
+  // ================= big viewer =================
+  const vport = $("vport"), vwrap = $("vwrap"), vimg = $("vimg"), vmarq = $("vmarq");
+  const TITLES = { basecolor: "Base Color", normal: "Normal", ao: "AO", roughness: "Roughness", height: "Height" };
+  const V = { key: null, z: 1, px: 0, py: 0, min: 0.05, max: 8, sel: null, selMode: false, drag: null, lastDims: "" };
+  let lastResult = null;
+
+  for (const thumb of document.querySelectorAll("#grid .card .thumb"))
+    thumb.addEventListener("click", () => { if (lastResult) vShow(thumb.closest(".card").dataset.key); });
+
+  function vShow(key) {
+    V.key = key;
+    $("viewer").classList.add("on");
+    for (const c of document.querySelectorAll("#grid .card"))
+      c.classList.toggle("active", c.dataset.key === key);
+    $("vtitle").textContent = TITLES[key];
+    clearSel();
+    vimg.onload = () => {
+      const dims = vimg.naturalWidth + "x" + vimg.naturalHeight;
+      if (dims !== V.lastDims) { V.lastDims = dims; vFit(); } else vApply();
+    };
+    vimg.src = lastResult.maps[key];
+  }
+
+  function vApply() {
+    vwrap.style.transform = `translate(${V.px}px, ${V.py}px) scale(${V.z})`;
+    $("v-zoom").value = Math.round(V.z * 100);
+    $("v-pct").textContent = Math.round(V.z * 100) + "%";
+    drawMarq();
+  }
+
+  function vFit() {
+    const r = vport.getBoundingClientRect();
+    V.z = Math.min(r.width / vimg.naturalWidth, r.height / vimg.naturalHeight) * 0.97;
+    V.px = (r.width  - vimg.naturalWidth  * V.z) / 2;
+    V.py = (r.height - vimg.naturalHeight * V.z) / 2;
+    vApply();
+  }
+
+  function vZoomTo(z, cx, cy) {          // cx/cy in viewport-local coords
+    z = Math.min(V.max, Math.max(V.min, z));
+    V.px = cx - (cx - V.px) * (z / V.z);
+    V.py = cy - (cy - V.py) * (z / V.z);
+    V.z = z;
+    vApply();
+  }
+  const vCenter = () => { const r = vport.getBoundingClientRect(); return [r.width / 2, r.height / 2]; };
+
+  $("v-in").onclick  = () => vZoomTo(V.z * 1.25, ...vCenter());
+  $("v-out").onclick = () => vZoomTo(V.z / 1.25, ...vCenter());
+  $("v-fit").onclick = () => vFit();
+  $("v-100").onclick = () => vZoomTo(1, ...vCenter());
+  $("v-zoom").addEventListener("input", e => vZoomTo(e.target.value / 100, ...vCenter()));
+
+  vport.addEventListener("wheel", e => {
+    e.preventDefault();
+    const r = vport.getBoundingClientRect();
+    vZoomTo(V.z * Math.pow(1.0015, -e.deltaY), e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+
+  document.addEventListener("keydown", e => {
+    if (!$("viewer").classList.contains("on")) return;
+    if (e.key === "+" || e.key === "=") vZoomTo(V.z * 1.25, ...vCenter());
+    else if (e.key === "-" || e.key === "_") vZoomTo(V.z / 1.25, ...vCenter());
+    else if (e.key === "0") vFit();
+    else if (e.key === "1") vZoomTo(1, ...vCenter());
+    else if (e.key === "Escape") { clearSel(); if (V.selMode) $("v-select").click(); }
+    else return;
+    e.preventDefault();
+  });
+
+  // ---- pan & marquee selection ----
+  const clampW = v => Math.max(0, Math.min(vimg.naturalWidth, v));
+  const clampH = v => Math.max(0, Math.min(vimg.naturalHeight, v));
+  const toImgX = sx => clampW((sx - V.px) / V.z);
+  const toImgY = sy => clampH((sy - V.py) / V.z);
+
+  vport.addEventListener("mousedown", e => {
+    if (e.button !== 0) return;
+    const r = vport.getBoundingClientRect();
+    const sx = e.clientX - r.left, sy = e.clientY - r.top;
+    if (V.selMode) {
+      V.sel = { x0: toImgX(sx), y0: toImgY(sy), x1: toImgX(sx), y1: toImgY(sy), live: true };
+      $("brushpanel").hidden = true;
+      drawMarq();
+    } else {
+      V.drag = { sx, sy, px: V.px, py: V.py };
+      vport.classList.add("panning");
+    }
+    e.preventDefault();
+  });
+  window.addEventListener("mousemove", e => {
+    if (!V.drag && !(V.sel && V.sel.live)) return;
+    const r = vport.getBoundingClientRect();
+    const sx = e.clientX - r.left, sy = e.clientY - r.top;
+    if (V.drag) { V.px = V.drag.px + sx - V.drag.sx; V.py = V.drag.py + sy - V.drag.sy; vApply(); }
+    else { V.sel.x1 = toImgX(sx); V.sel.y1 = toImgY(sy); drawMarq(); }
+  });
+  window.addEventListener("mouseup", () => {
+    if (V.drag) { V.drag = null; vport.classList.remove("panning"); }
+    if (V.sel && V.sel.live) {
+      V.sel.live = false;
+      const { w, h } = selRect();
+      if (w >= 4 && h >= 4) buildBrush(); else clearSel();
+    }
+  });
+
+  function selRect() {
+    return {
+      x: Math.floor(Math.min(V.sel.x0, V.sel.x1)),
+      y: Math.floor(Math.min(V.sel.y0, V.sel.y1)),
+      w: Math.round(Math.abs(V.sel.x1 - V.sel.x0)),
+      h: Math.round(Math.abs(V.sel.y1 - V.sel.y0)),
+    };
+  }
+  function drawMarq() {
+    if (!V.sel) { vmarq.hidden = true; return; }
+    const { x, y, w, h } = selRect();
+    vmarq.hidden = false;
+    vmarq.style.left   = (V.px + x * V.z) + "px";
+    vmarq.style.top    = (V.py + y * V.z) + "px";
+    vmarq.style.width  = (w * V.z) + "px";
+    vmarq.style.height = (h * V.z) + "px";
+  }
+  function clearSel() { V.sel = null; drawMarq(); $("brushpanel").hidden = true; }
+
+  $("v-select").onclick = () => {
+    V.selMode = !V.selMode;
+    $("v-select").classList.toggle("active", V.selMode);
+    vport.classList.toggle("selecting", V.selMode);
+    if (!V.selMode) clearSel();
+  };
+
+  // ---- brush extraction ----
+  let brushCanvas = null;
+  function buildBrush() {
+    const { x, y, w, h } = selRect();
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(vimg, x, y, w, h, 0, 0, w, h);
+    const im = ctx.getImageData(0, 0, w, h), d = im.data;
+    const n = w * h, vals = new Float32Array(n);
+    if (V.key === "normal") {
+      // stroke intensity = how far the normal tilts from flat
+      for (let i = 0; i < n; i++)
+        vals[i] = Math.hypot(d[i * 4] - 128, d[i * 4 + 1] - 128);
+    } else {
+      for (let i = 0; i < n; i++)
+        vals[i] = d[i * 4] * .299 + d[i * 4 + 1] * .587 + d[i * 4 + 2] * .114;
+    }
+    let lo = Infinity, hi = -Infinity;
+    for (const v of vals) { if (v < lo) lo = v; if (v > hi) hi = v; }
+    const span = hi - lo || 1;
+    const inv = $("b-inv").checked;
+    for (let i = 0; i < n; i++) {
+      const t = (vals[i] - lo) / span;
+      let out = V.key === "normal" ? 1 - t : t;   // strokes end up dark
+      if (inv) out = 1 - out;
+      const g = Math.round(out * 255);
+      d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = g;
+      d[i * 4 + 3] = 255;
+    }
+    ctx.putImageData(im, 0, 0);
+    brushCanvas = c;
+
+    const p = $("bprev"), pctx = p.getContext("2d");
+    pctx.fillStyle = "#fff"; pctx.fillRect(0, 0, p.width, p.height);
+    const s = Math.min(p.width / w, p.height / h);
+    pctx.drawImage(c, (p.width - w * s) / 2, (p.height - h * s) / 2, w * s, h * s);
+    $("brushpanel").hidden = false;
+  }
+  $("b-inv").addEventListener("change", () => { if (V.sel && !V.sel.live) buildBrush(); });
+  $("b-close").onclick = clearSel;
+  $("b-save").onclick = () => {
+    if (!brushCanvas) return;
+    brushCanvas.toBlob(blob => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = (lastResult ? lastResult.stem + "_" : "") + V.key + "_brush.png";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    });
+  };
+</script>
+</body>
+</html>
